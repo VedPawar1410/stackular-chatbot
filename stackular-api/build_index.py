@@ -9,12 +9,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from sentence_transformers import SentenceTransformer  # noqa: E402
-from rag import EMBED_MODEL, build_index, get_index  # noqa: E402
+from rag import Embedder, build_index, get_index  # noqa: E402
 
 if __name__ == "__main__":
     print("Loading embedding model...")
-    embedder = SentenceTransformer(EMBED_MODEL)
+    embedder = Embedder()
     index = get_index()
     print("Scraping pages...")
     n = build_index(index, embedder)

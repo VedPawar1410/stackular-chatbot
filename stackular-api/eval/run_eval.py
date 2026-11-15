@@ -12,8 +12,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from sentence_transformers import SentenceTransformer  # noqa: E402
-from rag import EMBED_MODEL, GROQ_MODEL, get_index, rag_answer  # noqa: E402
+from rag import Embedder, GROQ_MODEL, get_index, rag_answer  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 # Models write "888‑278‑8667" with non-breaking hyphens; normalise dashes and spaces first.
@@ -33,7 +32,7 @@ def check(case, answer):
 
 def main():
     cases = json.loads((ROOT / "eval" / "cases.json").read_text())
-    embedder = SentenceTransformer(EMBED_MODEL)
+    embedder = Embedder()
     index = get_index()
 
     results = []

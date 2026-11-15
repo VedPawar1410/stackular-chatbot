@@ -1,13 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 import os
 
 load_dotenv()
 
-from rag import EMBED_MODEL, get_index, rag_answer  # noqa: E402 (needs env loaded first)
+from rag import Embedder, get_index, rag_answer  # noqa: E402 (needs env loaded first)
 
 app = FastAPI()
 
@@ -22,7 +21,7 @@ app.add_middleware(
 
 # ── Load models once at startup, not per request ──
 print("Loading embedding model...")
-embedder = SentenceTransformer(EMBED_MODEL)
+embedder = Embedder()
 
 print("Connecting to Pinecone...")
 index = get_index()

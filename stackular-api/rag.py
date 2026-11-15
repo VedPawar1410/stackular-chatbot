@@ -5,6 +5,8 @@ from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
 from bs4 import BeautifulSoup
 from pinecone import Pinecone, ServerlessSpec
+from fastembed import TextEmbedding
+import numpy as np
 import requests
 import os
 
@@ -13,6 +15,20 @@ GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 EMBED_MODEL = "BAAI/bge-small-en"
 INDEX_NAME = "bge-small-en"
 EMBED_DIM = 384  # bge-small-en output size; the Pinecone index must match
+
+
+class Embedder:
+    """bge-small-en via fastembed (ONNX runtime) instead of sentence-transformers (torch).
+
+    Same weights, same vectors (cosine 1.0 vs the torch version, so the index didn't need
+    rebuilding), but no torch: small enough for a 512 MB free Render instance.
+    """
+
+    def __init__(self):
+        self.model = TextEmbedding(EMBED_MODEL)
+
+    def encode(self, texts: list[str], **_) -> np.ndarray:
+        return np.array(list(self.model.embed(texts)))
 
 
 def get_index():

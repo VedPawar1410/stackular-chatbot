@@ -1,10 +1,10 @@
 {
   "summary": {
     "model": "openai/gpt-oss-120b",
-    "passed": 15,
+    "passed": 16,
     "total": 16,
-    "median_latency_s": 1.9,
-    "max_latency_s": 2.21,
+    "median_latency_s": 2.03,
+    "max_latency_s": 2.78,
     "date": "2026-11-15"
   },
   "results": [
@@ -13,7 +13,7 @@
       "q": "Hi",
       "pass": true,
       "fails": [],
-      "latency_s": 1.86,
+      "latency_s": 2.44,
       "answer": "Hello! Welcome to Stackular \u2014 feel free to ask me anything about our services or company. \ud83d\udc4b"
     },
     {
@@ -21,15 +21,15 @@
       "q": "Who founded Stackular?",
       "pass": true,
       "fails": [],
-      "latency_s": 1.67,
-      "answer": "Stackular was founded by Jason Storch (Founder & CEO) and Venkat Varkala (Founder & CTO)."
+      "latency_s": 1.51,
+      "answer": "Stackular was founded by Jason\u202fStorch (Founder &\u202fCEO) and Venkat\u202fVarkala (Founder &\u202fCTO)."
     },
     {
       "id": "locations",
       "q": "Where are Stackular's offices?",
       "pass": true,
       "fails": [],
-      "latency_s": 1.72,
+      "latency_s": 1.57,
       "answer": "Stackular has offices in Columbia, Maryland (USA), Chicago, Illinois (USA), Hyderabad (India), and San\u202fJos\u00e9 (Costa Rica)."
     },
     {
@@ -37,7 +37,7 @@
       "q": "Does Stackular have an office in Chicago?",
       "pass": true,
       "fails": [],
-      "latency_s": 1.63,
+      "latency_s": 2.15,
       "answer": "Yes, Stackular has an office in Chicago, Illinois, USA."
     },
     {
@@ -45,41 +45,39 @@
       "q": "What is Stackular's email address?",
       "pass": true,
       "fails": [],
-      "latency_s": 2.13,
-      "answer": "Stackular's email address is\u202finfo@stackular.com.\n\n[Contact Stackular](https://www.stackular.com/contact-us#:~:text=info%40stackular.com,888)%20278%2D8667)"
+      "latency_s": 2.03,
+      "answer": "Stackular's email address is\u202finfo@stackular.com.  \n[Contact Stackular](https://www.stackular.com/contact-us#:~:text=info%40stackular.com,888)%20278%2D8667)"
     },
     {
       "id": "phone",
       "q": "What is Stackular's phone number?",
       "pass": true,
       "fails": [],
-      "latency_s": 2.0,
+      "latency_s": 1.95,
       "answer": "Stackular's phone number is\u202f1\u202f(888)\u202f278\u20118667.  \n\n[Contact Stackular](https://www.stackular.com/contact-us#:~:text=info%40stackular.com,888)%20278%2D8667)"
     },
     {
       "id": "services",
       "q": "What services does Stackular offer?",
-      "pass": false,
-      "fails": [
-        "none of ['Artificial Intelligence', 'AI']"
-      ],
-      "latency_s": 1.96,
-      "answer": "Stackular provides end\u2011to\u2011end product development, UX/UI redesign, and modern data platform solutions across industries such as healthcare, mobility, commercial, and hospitality."
+      "pass": true,
+      "fails": [],
+      "latency_s": 2.75,
+      "answer": "Stackular provides product development, UX/UI redesign, data platform engineering, and cloud\u2011based solutions.\u202fWe tailor these services for industries such as healthcare, mobility, commercial, and hospitality."
     },
     {
       "id": "openings",
       "q": "What job openings do you have?",
       "pass": true,
       "fails": [],
-      "latency_s": 1.67,
-      "answer": "We currently have openings such as a Senior Cloud Engineer in Hyderabad, India, along with other positions across our locations.  \n\n[View open positions](https://www.stackular.com/joinus#:~:text=OUR%20CURRENT%20OPENINGS)"
+      "latency_s": 1.96,
+      "answer": "We currently have openings such as a Senior Cloud Engineer in Hyderabad, along with other positions across our locations.  \n[View open positions](https://www.stackular.com/joinus#:~:text=OUR%20CURRENT%20OPENINGS)"
     },
     {
       "id": "contact_link",
       "q": "How can I contact Stackular?",
       "pass": true,
       "fails": [],
-      "latency_s": 2.07,
+      "latency_s": 1.57,
       "answer": "You can reach us via email at\u202finfo@stackular.com\u202for call\u202f1\u2011888\u2011278\u20118667.  \n\n[Contact Stackular](https://www.stackular.com/contact-us#:~:text=info%40stackular.com,888)%20278%2D8667)"
     },
     {
@@ -87,7 +85,7 @@
       "q": "Which industries does Stackular work with?",
       "pass": true,
       "fails": [],
-      "latency_s": 1.59,
+      "latency_s": 2.17,
       "answer": "Stackular serves clients across industries such as Commercial, Hospitality, and Global Mobility."
     },
     {
@@ -95,7 +93,7 @@
       "q": "What are Stackular's core values?",
       "pass": true,
       "fails": [],
-      "latency_s": 2.21,
+      "latency_s": 2.0,
       "answer": "Stackular\u2019s core values are\u202fEmpathy\u202fand\u202fDeliver Results."
     },
     {
@@ -103,7 +101,7 @@
       "q": "Tell me about the UX redesign project for the rideshare company.",
       "pass": true,
       "fails": [],
-      "latency_s": 1.87,
+      "latency_s": 1.82,
       "answer": "I don\u2019t have specific details on a rideshare UX redesign project; you can explore similar work in our portfolio.  \n[View Portfolio](https://www.stackular.com/portfolio)"
     },
     {
@@ -111,7 +109,7 @@
       "q": "Where can I read your privacy policy?",
       "pass": true,
       "fails": [],
-      "latency_s": 1.9,
+      "latency_s": 1.7,
       "answer": "You can read Stackular\u2019s privacy policy here:\n\n[Privacy Policy](https://www.stackular.com/privacy-policy)"
     },
     {
@@ -119,23 +117,23 @@
       "q": "What projects has Stackular done?",
       "pass": true,
       "fails": [],
-      "latency_s": 2.09,
-      "answer": "Stackular has delivered projects across Commercial, Hospitality, Healthcare, and Global Mobility, including UX redesigns, AP automation, and modern data platforms.  \n[View Portfolio](https://www.stackular.com/portfolio)"
+      "latency_s": 2.37,
+      "answer": "Stackular has delivered projects across Commercial, Hospitality, Healthcare, and Global Mobility, such as UX redesigns, AP automation solutions, and modern data platforms.  \n[View Portfolio](https://www.stackular.com/portfolio)"
     },
     {
       "id": "offtopic_weather",
       "q": "What is the weather today?",
       "pass": true,
       "fails": [],
-      "latency_s": 2.09,
-      "answer": "My expertise is focused on Stackular's services, industries, and company. For anything else, here's how to reach the team: [Contact Stackular](https://www.stackular.com/contact-us)"
+      "latency_s": 2.78,
+      "answer": "My expertise is focused on Stackular's services, industries, and company. For anything else, here's how to reach the team: [Contact Stackular](https://www.stackular.com/contact-us#:~:text=info%40stackular.com,888)%20278%2D8667)"
     },
     {
       "id": "offtopic_code",
       "q": "Write me a Python function that reverses a string.",
       "pass": true,
       "fails": [],
-      "latency_s": 1.71,
+      "latency_s": 2.27,
       "answer": "My expertise is focused on Stackular's services, industries, and company. For anything else, here's how to reach the team: [Contact Stackular](https://www.stackular.com/contact-us)"
     }
   ]
