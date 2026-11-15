@@ -4,8 +4,18 @@ export default function Home() {
   return (
     <main style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif", background: '#060b14', color: '#fff', minHeight: '100vh', overflowX: 'hidden' }}>
 
+      {/* Phones: the six nav links don't fit beside the logo, so hide them and keep the logo +
+          Contact Us button. A <style> tag because globals.css is never imported by the layout.
+          Padding needs !important to beat the nav's inline style. */}
+      <style>{`
+        @media (max-width: 768px) {
+          .nav-link { display: none; }
+          .site-nav { padding: 0 16px !important; }
+        }
+      `}</style>
+
       {/* ── NAV ── */}
-      <nav style={{
+      <nav className="site-nav" style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '0 48px', height: 64, position: 'fixed', top: 0, left: 0, right: 0,
         background: 'rgba(6,11,20,0.92)', backdropFilter: 'blur(12px)',
@@ -24,7 +34,7 @@ export default function Home() {
         {/* Nav links */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 36 }}>
           {['Home', 'About', 'Services', 'Industries', 'Portfolio', 'Join Us'].map((item, i) => (
-            <a key={item} href="#" style={{
+            <a key={item} href="#" className="nav-link" style={{
               fontSize: 14, color: i === 0 ? '#fff' : 'rgba(255,255,255,0.6)',
               textDecoration: 'none', transition: 'color 0.15s',
               borderBottom: i === 0 ? '1.5px solid #1d6ef5' : 'none',
