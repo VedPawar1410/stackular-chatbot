@@ -186,7 +186,7 @@ export default function Home() {
             Zero sales tactics. Just honest, straightforward conversations.
           </h2>
           <p style={{ fontSize: 14, color: 'rgba(255,255,255,0.55)', lineHeight: 1.7, margin: '0 0 20px' }}>
-            We're a dedicated team of trusted IT advisors with years of industry experience and over 100+ elite consultants in the USA, Costa Rica and India. We utilize cutting-edge technologies and industry best practices to develop efficient and scalable solutions to enhance productivity and streamline processes.
+            We&apos;re a dedicated team of trusted IT advisors with years of industry experience and over 100+ elite consultants in the USA, Costa Rica and India. We utilize cutting-edge technologies and industry best practices to develop efficient and scalable solutions to enhance productivity and streamline processes.
           </p>
         </div>
       </section>
