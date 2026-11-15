@@ -97,6 +97,8 @@ export default function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
       });
+      // A 500 from the API has no `answer` field; treat it like a network error
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
       setMessages(prev => [...prev, { role: 'bot', text: data.answer }]);
     } catch {

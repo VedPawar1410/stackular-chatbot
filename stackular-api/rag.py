@@ -12,7 +12,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
 import os
 import time
-from langchain_openai import ChatOpenAI
+
+# llama-3.3-70b-versatile was decommissioned on Groq; override with GROQ_MODEL if this one goes too.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
 
 STACKULAR_PAGES = [
     "https://www.stackular.com/",
@@ -215,16 +217,9 @@ Visitor's question: {question}
 Answer:"""
 
     llm = ChatGroq(
-        model="llama-3.3-70b-versatile",
+        model=GROQ_MODEL,
         api_key=os.getenv("GROQ_API_KEY"),
         temperature=0.7
     )
-
-    # llm = ChatOpenAI(
-    #     model="google/gemini-2.0-flash-exp:free",
-    #     openai_api_key=os.getenv("OPENROUTER_API_KEY"),
-    #     openai_api_base="https://openrouter.ai",
-    #     temperature=0.7
-    # )
     response = llm.invoke([HumanMessage(content=prompt)])
     return response.content

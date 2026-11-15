@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from pinecone import Pinecone
+from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
 from rag import build_index_if_empty, rag_answer
@@ -25,8 +25,13 @@ embedder = SentenceTransformer('BAAI/bge-small-en')
 
 print("Connecting to Pinecone...")
 pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-#index = pc.Index("stackular")
-index = pc.Index("bge-small-en")
+INDEX_NAME = "bge-small-en"
+if INDEX_NAME not in pc.list_indexes().names():
+    # 384 = bge-small-en embedding size; a fresh Pinecone account has no index yet
+    print(f"Creating Pinecone index '{INDEX_NAME}'...")
+    pc.create_index(INDEX_NAME, dimension=384, metric="cosine",
+                    spec=ServerlessSpec(cloud="aws", region="us-east-1"))
+index = pc.Index(INDEX_NAME)
 
 build_index_if_empty(index, embedder)
 print("API ready.")
