@@ -118,13 +118,15 @@ def build_index(index, embedder) -> int:
     )
     # Contextual chunk header: prefix each chunk with its page title so the vector knows what
     # the chunk is about (bare service headings on /services were losing to long case studies).
-    chunks = [(src, f"[{title}] {c}") for src, title, text in texts for c in splitter.split_text(text)]
+    # pos = position within its page; pos 0 is the page's opening (its summary), used by routing.
+    chunks = [(src, pos, f"[{title}] {c}") for src, title, text in texts
+              for pos, c in enumerate(splitter.split_text(text))]
     print(f"  {len(texts)} sources -> {len(chunks)} chunks")
-    embeddings = embedder.encode([c for _, c in chunks], show_progress_bar=True)
+    embeddings = embedder.encode([c for _, _, c in chunks], show_progress_bar=True)
 
     vectors = [
-        {"id": f"chunk_{i}", "values": emb.tolist(), "metadata": {"text": c, "source": src}}
-        for i, ((src, c), emb) in enumerate(zip(chunks, embeddings))
+        {"id": f"chunk_{i}", "values": emb.tolist(), "metadata": {"text": c, "source": src, "pos": pos}}
+        for i, ((src, pos, c), emb) in enumerate(zip(chunks, embeddings))
     ]
     if index.describe_index_stats().get("total_vector_count", 0) > 0:
         index.delete(delete_all=True)  # full rebuild, so no stale chunks survive
@@ -133,14 +135,40 @@ def build_index(index, embedder) -> int:
     return len(vectors)
 
 
+# Keyword routing: if the question names a topic that has its own page, also search inside
+# that page. bge-small ranks short heading lists (e.g. /services) below long case studies, so
+# pure vector search never surfaced /services for "What services do you offer?".
+# Keys are matched as substrings of the lower-cased question.
+TOPIC_PAGES = {
+    "service": "https://www.stackular.com/services/",
+    "industr": "https://www.stackular.com/industries",
+    "job": "https://www.stackular.com/joinus",
+    "career": "https://www.stackular.com/joinus",
+    "opening": "https://www.stackular.com/joinus",
+    "hiring": "https://www.stackular.com/joinus",
+    "founder": "https://www.stackular.com/about",
+    "values": "https://www.stackular.com/about",
+    "privacy": "https://www.stackular.com/privacy-policy",
+}
+
+
 def retrieve(question: str, index, embedder, top_k: int = 5) -> list[str]:
     q_embedding = embedder.encode([question]).tolist()[0]
-    results = index.query(
-        vector=q_embedding,
-        top_k=top_k,
-        include_metadata=True
-    )
-    return [match["metadata"]["text"] for match in results["matches"]]
+    q = question.lower()
+    routed_pages = {page for key, page in TOPIC_PAGES.items() if key in q}
+
+    texts = []
+    for page in routed_pages:  # page-specific chunks first, so the LLM sees them up front
+        # The page's opening chunk (its overview, e.g. the list of service categories) plus the
+        # single chunk on that page most similar to the question.
+        opening = index.query(vector=q_embedding, top_k=1, include_metadata=True,
+                              filter={"source": {"$eq": page}, "pos": {"$eq": 0}})
+        best = index.query(vector=q_embedding, top_k=1, include_metadata=True,
+                           filter={"source": {"$eq": page}, "pos": {"$gt": 0}})
+        texts += [m["metadata"]["text"] for m in opening["matches"] + best["matches"]]
+    results = index.query(vector=q_embedding, top_k=top_k, include_metadata=True)
+    texts += [m["metadata"]["text"] for m in results["matches"] if m["metadata"]["text"] not in texts]
+    return texts
 
 
 def rag_answer(question: str, index, embedder) -> str:
