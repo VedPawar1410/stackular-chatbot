@@ -8,8 +8,8 @@ portfolio demo; **not the official Stackular website**.
 
 | Metric (16-case eval, Nov 2026) | Result |
 |---|---|
-| Live API pass rate | **15 / 16** |
-| Median answer latency (live, warm) | 2.8 s |
+| Live API pass rate | **16 / 16** |
+| Median answer latency (live, warm) | 2.7 s |
 | Backend memory (512 MB container, 5 concurrent chats) | 277 MB peak |
 | Vectors in index | 388 chunks from 14 pages + 1 facts block |
 
@@ -47,6 +47,18 @@ portfolio demo; **not the official Stackular website**.
   phone only exist in the site footer, which the scraper strips.
 - **Groq model from `GROQ_MODEL` env var.** The original model was retired; the replacement
   was picked by eval (gpt-oss-120b 14/16 vs qwen3.8-27b 10/16 on the same code).
+- **Keyword routing to topic pages.** If a question names a topic with its own page
+  ("services", "jobs", "industries", "founder"...), retrieval also pulls that page's opening
+  chunk (its overview) and its best-matching chunk. Pure vector search with bge-small never
+  surfaced `/services` for "What services do you offer?"; full hybrid search would have
+  needed a different index type and an extra encoder in 512 MB.
+- **Per-IP rate limit (10/min) and a 500-character question cap** to protect the free Groq
+  quota; the check runs before any embedding or LLM call.
+- **Cold-start handling instead of a keep-alive cron.** The widget pings the API when the
+  page loads so a sleeping Render instance starts waking early, and shows "Waking up the
+  server..." if an answer takes over 5 s.
+- **Fact drift check.** `build_index.py` confirms every hand-written fact still appears on
+  the live site and warns if one disappears.
 
 ## Built on a $0 budget
 
@@ -80,14 +92,17 @@ so every grade can be checked by eye.
 | Original code, model swapped to gpt-oss-120b | 14 / 16 | email passed only by decoding it out of a URL in the prompt |
 | + fixed facts, chunk headers, temp 0 (local) | 15 / 16 | |
 | fastembed build (local) | 16 / 16 | same vectors; services passed on wording, not retrieval |
-| **Live on Render** | **15 / 16** | only `services` fails (see Limitations) |
+| Live on Render (first deploy) | 15 / 16 | only `services` failed |
+| + keyword routing, 2 chunks per page (local) | 15 / 16 twice | services answer now from `/services` but listed sub-services |
+| + routing to page opening + best chunk (local) | 16 / 16 twice | services answer lists the six real categories |
+| **Live on Render (final)** | **16 / 16** | median 2.7 s, max 3.4 s |
 
 **Before vs. after**
 
 | | Before (March 2026 code, run Nov 2026) | After |
 |---|---|---|
 | Fresh install starts | No: `ModuleNotFoundError: langchain_openai` | Yes |
-| Answers questions | No (retired model) | 15/16 live |
+| Answers questions | No (retired model) | 16/16 live |
 | Scraping | Selenium + Chrome; a failure became `""` silently | `requests`; any failure stops the build |
 | Facts | 2 offices, invented "founded 2015", no email/phone | 4 offices, email, phone, all verified |
 | Embedder memory | 626 MB peak (torch) | 277 MB peak for the whole API |
@@ -95,6 +110,10 @@ so every grade can be checked by eye.
 | Dependencies | unpinned | pinned, Python 3.12 |
 | Dev script | Windows only | macOS/Linux (Windows untested) |
 | Deployed | No | Vercel + Render (free) |
+| Abuse protection | none | 10 req/min per IP (429), 500-char cap |
+| Cold start | n/a | pre-warm on page load + "waking up" hint (real cold start not measured) |
+| Mobile nav | overflowed off-screen | links hidden below 768 px |
+| Hand-written facts | unchecked (2 were wrong) | checked against the live site on every rebuild |
 
 ## Project structure
 
@@ -113,7 +132,7 @@ stackular-chatbot/
 │   ├── Dockerfile            # Render image (fastembed model baked in)
 │   ├── requirements.txt      # pinned runtime deps
 │   ├── .python-version       # 3.12
-│   └── .env.example          # GROQ_API_KEY, PINECONE_API_KEY, optional GROQ_MODEL / ALLOWED_ORIGINS
+│   └── .env.example          # GROQ_API_KEY, PINECONE_API_KEY; optional GROQ_MODEL, ALLOWED_ORIGINS, RATE_LIMIT_PER_MIN
 └── stackular-frontend/
     ├── app/page.js           # Stackular-style landing page
     ├── app/layout.js         # root layout, DEMO badge, mounts the widget
@@ -157,16 +176,21 @@ python -m eval.run_eval
 
 ## Limitations
 
-- **Services question is borderline.** With bge-small-en the `/services` page never reaches
-  the top 20 results for "What services does Stackular offer?"; the long case studies win.
-  Answers are accurate but built from the home page and case studies, and sometimes miss "AI".
-- **Cold starts.** Render's free tier sleeps after ~15 min idle; the first request then waits
-  for the container to wake (not measured here; Render quotes ~30-60 s).
-- **The eval is small and coarse:** 16 cases, substring grading, one run per stage. Even at
-  temperature 0 the wording varies between runs.
-- **`COMPANY_FACTS` is hand-maintained** and will drift if the site changes.
-- **No rate limiting** on `/chat`; heavy use could exhaust the free Groq quota.
-- **Mobile layout:** the landing page's nav row overflows at phone width (pre-existing).
+- **Keyword routing needs a trigger word.** "What services do you offer?" routes to
+  `/services`; "What do you do?" doesn't, and falls back to plain vector search, where
+  bge-small still ranks `/services` poorly.
+- **Cold starts.** Render's free tier sleeps after ~15 min idle; I couldn't measure a real one:
+  after 17 minutes without my traffic the instance was still awake (0.2 s), possibly because
+  visitors' pre-warm pings kept it up. The pre-warm ping hides part of the wake-up when
+  visitors spend a few seconds on the page before asking.
+- **The rate limit is demo-grade:** it lives in memory (resets when Render sleeps or
+  restarts) and trusts the first `X-Forwarded-For` entry, which a client can fake (verified).
+- **The eval is small and coarse:** 16 cases, substring grading, one or two runs per stage.
+  Even at temperature 0 the wording varies between runs.
+- **`COMPANY_FACTS` is still hand-written.** The drift check confirms each fact still appears
+  on its page, not that it is still correct in context.
+- **`app/globals.css` is never imported** by the layout, so its rules don't apply (found
+  while fixing the mobile nav; left as is to avoid restyling the whole page).
 - `dev:all` is untested on Windows.
 
 ## Learning log: mistakes and what I learned
@@ -213,6 +237,27 @@ deployed it for free on Vercel + Render with a visible demo label.
 *Known gaps I chose not to fix:* services retrieval (needs a better embedder or hybrid
 search), no rate limiting, hand-maintained facts, mobile nav overflow, cold starts.
 
+### Layer 3 - Closing the known gaps (November 2026, Claude Code)
+
+*What I did:* fixed the gaps Layer 2 left open, one commit each, staying on free tiers and
+adding no new dependencies.
+
+| # | Decision | Why |
+|---|---|---|
+| 3.1 | Keyword routing to topic pages instead of hybrid search | Fixes the services miss (16/16 on two runs) with ~30 lines; Pinecone hybrid needs a dotproduct index, a full re-index and a sparse encoder in 512 MB. |
+| 3.2 | Route to a page's **opening** chunk + its best chunk | My first version took the 2 most similar chunks and still scored 15/16: they were sub-services. The category list was the page's first chunk, ranked only 6th. Most similar is not always most useful; overviews lose similarity contests to details. Needed a `pos` field per chunk and a re-index. |
+| 3.3 | In-memory per-IP rate limit (10/min) + 500-char cap | Protects the free Groq quota with no new library; 429 has its own widget message. Verified live: request 11 returns 429. A faked `X-Forwarded-For` bypasses it, which I left as a known limit rather than risk one shared bucket for every visitor. |
+| 3.4 | Pre-warm ping + "waking up" hint, not a keep-alive cron | Works with the free tier's sleep instead of gaming it, and makes the wait honest. Tested against a fake 8 s API. |
+| 3.5 | Mobile nav rule in a `<style>` tag | The CSS fix first did nothing: `globals.css` was never imported (dead since March). Importing it would restyle the whole page, so I used the pattern the widget already uses. |
+| 3.6 | Fact drift check that warns, not fails | Catches changed offices/phone/email at rebuild time without blocking a content refresh. Tested with planted wrong facts ("Founded in 2015", "Boston"). |
+
+*Mistakes I caught along the way:* an early `return` in the widget that would have left the
+typing dots spinning forever after a 429 (caught before running it), and the dead
+`globals.css` making a correct CSS rule look broken.
+
+*Known gaps I chose not to fix:* routing needs trigger words, demo-grade rate limiting,
+cold starts on the free tier, the unused `globals.css`, Windows `dev:all`.
+
 ### Key takeaways
 
 1. **Measure before fixing.** The eval found a dead model, stale facts and a lucky pass that reading the code alone missed.
@@ -220,10 +265,12 @@ search), no rate limiting, hand-maintained facts, mobile nav overflow, cold star
 3. **Check the plumbing before the algorithm.** Every real bug was config, imports, encodings or cleaning, not the RAG idea.
 4. **External services rot.** Models get retired and free tiers change; keep them in config and check them before you plan.
 5. **Your own fixes need checking too.** My rebuild added a mojibake bug and a grader bug, and the eval and spot-checks caught both.
+6. **A cheap targeted fix can beat a "proper" one.** Keyword routing fixed what hybrid search would have, without a re-architecture.
+7. **"The CSS didn't apply" usually means the file isn't loaded.** Check the plumbing before the rule.
 
 ## Future improvements
 
-- Hybrid (keyword + vector) search or a stronger embedder to fix the services case.
-- Simple rate limiting on `/chat`.
-- A scheduled re-scrape that alerts when page text or facts change.
+- Hybrid (keyword + vector) search or a stronger embedder, so routing isn't needed.
+- A shared store (e.g. Redis) if the rate limit ever needs to be abuse-proof.
+- Schedule `build_index.py` so the fact check runs without anyone remembering to.
 - Multi-turn memory in the widget.

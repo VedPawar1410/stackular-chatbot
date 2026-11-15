@@ -174,3 +174,57 @@ chunks for mojibake (0 found).
 4. **Keep offline jobs out of the web server.**
 5. **Never let a failure turn into an empty string.**
 6. **Read the answers, not just the score.**
+7. **When a "proper" fix needs re-architecture, look for the targeted fix** that solves the actual failing case, and write down what it doesn't cover (added after the follow-up in section 7).
+
+---
+
+## 7. Follow-up: closing the known gaps (same day, five more commits)
+
+After the first deploy, the README listed known gaps. Ved asked to close them quickly. Plan
+first (with tradeoffs), then one commit each, each verified before handing over.
+
+| Gap | Fix | Rejected alternative | Evidence |
+|---|---|---|---|
+| A. Services answer | Keyword routing: trigger words → filtered Pinecone query on that page (`filter={"source": ...}`), taking the page's opening chunk (`pos == 0`) + its best chunk | Pinecone hybrid (sparse + dense): needs a dotproduct index, full re-index and a sparse encoder in 512 MB | `/services` went from not in the top 20 to first; eval 16/16 on two consecutive runs |
+| B. No rate limit | In-memory sliding window per IP (deque of timestamps + lock), 10/min, 429; question capped at 500 chars | slowapi/Redis: a new dependency or new infra | Local: `200 200 200 429` with the limit at 3; live: request 11 → 429 |
+| C. Cold starts | Widget pings `/` on page load; "Waking up the server" hint after 5 s | Keep-alive cron every 14 min: games the free tier and burns free hours | Fake 8 s API: hint absent at 2 s, shown at 7 s, gone at 11 s with the answer |
+| D. Mobile nav | Media query hides the six links below 768 px | Importing `globals.css` (it was never imported; would restyle the page) | 375 px: 0 links, no overflow; 1024 px unchanged |
+| E. Facts drift | `check_facts()` looks for each fact on its source page's full text; `build_index.py` warns | Failing the build on drift | All 8 real facts found; planted "Founded in 2015" and "Boston" reported |
+
+**Mistakes in this round**
+- First routing attempt (2 most-similar chunks from the page) still scored 15/16: it picked
+  sub-service details, not the category overview. Fix: always include the page's opening chunk.
+- An early `return` inside the widget's `try` would have skipped `setIsLoading(false)` and left
+  the typing dots spinning after a 429. Caught before running it; rewritten as `if/else`.
+- A correct CSS rule "didn't work" because `globals.css` is never imported. Lesson: when
+  styles don't apply, check the file is loaded before debugging the rule.
+- A safety hook blocked some edits but not others in the same batch (again), leaving a file
+  briefly half-edited. Re-running `git diff` after every batch caught it each time.
+
+**Commands added to the cookbook**
+```bash
+# Rate limit: N+1 requests from one IP, then one from another IP
+for i in 1 2 3 4; do curl -s -o /dev/null -w "%{http_code} " -X POST localhost:8765/chat \
+  -H 'Content-Type: application/json' -H 'X-Forwarded-For: 1.1.1.1' -d '{"question":"Hi"}'; done
+```
+```bash
+# Is the new backend code live? (cheap: 422 from validation, no LLM call)
+curl -s -o /dev/null -w '%{http_code}\n' -X POST https://stackular-chatbot.onrender.com/chat \
+  -H 'Content-Type: application/json' -d "{\"question\":\"$(printf 'a%.0s' $(seq 1 600))\"}"
+```
+```bash
+# Real cold start: stay idle > 15 min, then time the first request
+sleep 1020; curl -s -o /dev/null -w '%{http_code} %{time_total}s\n' --max-time 180 https://stackular-chatbot.onrender.com/
+```
+```bash
+# Fact drift check alone (no rebuild), plus a planted wrong fact
+python -c "import rag; print(rag.check_facts()); print(rag.check_facts(rag.FACT_SOURCES + [('Boston', 'https://www.stackular.com/contact-us')]))"
+```
+Also used: a 25-line fake slow API (`http.server`, sleeps 8 s on POST) to test the waking hint
+without waiting for Render to sleep, and `javascript_exec` in the browser to count visible nav
+links at 375 px and 1024 px.
+
+**Outcome of the follow-up:** live eval over HTTP **16/16** (median 2.7 s, max 3.4 s, warm).
+The cold-start measurement did not happen: after 17 minutes without my traffic the Render
+instance was still awake (0.2 s), possibly because visitors' pre-warm pings kept it up, so the
+real wake-up time is still unmeasured.
