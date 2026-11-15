@@ -97,10 +97,15 @@ export default function ChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ question }),
       });
-      // A 500 from the API has no `answer` field; treat it like a network error
-      if (!res.ok) throw new Error(`API returned ${res.status}`);
-      const data = await res.json();
-      setMessages(prev => [...prev, { role: 'bot', text: data.answer }]);
+      if (res.status === 429) {
+        // Rate limited by the API: say so instead of claiming a connection problem
+        setMessages(prev => [...prev, { role: 'bot', text: "You're sending messages quickly. Please wait a minute and try again." }]);
+      } else {
+        // A 500 from the API has no `answer` field; treat it like a network error
+        if (!res.ok) throw new Error(`API returned ${res.status}`);
+        const data = await res.json();
+        setMessages(prev => [...prev, { role: 'bot', text: data.answer }]);
+      }
     } catch {
       setMessages(prev => [...prev, {
         role: 'bot',
