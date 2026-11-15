@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
+import os
 
 load_dotenv()
 
@@ -13,7 +14,8 @@ app = FastAPI()
 # CORS — allows the Vercel frontend to call this API
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten this to your Vercel URL after deployment
+    # Comma-separated list, e.g. "https://your-app.vercel.app". Defaults to "*" for local dev.
+    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(","),
     allow_methods=["*"],
     allow_headers=["*"],
 )
