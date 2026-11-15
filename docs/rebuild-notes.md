@@ -228,3 +228,21 @@ links at 375 px and 1024 px.
 The cold-start measurement did not happen: after 17 minutes without my traffic the Render
 instance was still awake (0.2 s), possibly because visitors' pre-warm pings kept it up, so the
 real wake-up time is still unmeasured.
+
+---
+
+## 8. Open items and why we stopped
+
+Decision (15 Nov 2026): stop here. The demo works live (16/16), runs for $0/month and is
+documented; every remaining item costs more than it is worth for a portfolio demo.
+
+| Open item | Needed? | Why we stopped |
+|---|---|---|
+| Routing only works with trigger words | No | Common questions ("services", "jobs", "founders") are covered. A general fix (hybrid search or a bigger embedder) needs a new index and more memory than the free tier: a rebuild, not a fix. |
+| Rate limit is demo-grade (in memory, spoofable header) | No | It stops the realistic risk: one person or script draining the free Groq quota. Abuse-proofing needs Redis: real infra for a demo nobody attacks. |
+| Real cold start not measured | No | A missing number, not a missing feature; the widget already handles it. To get it: open the site after it has been idle overnight and time the first answer. |
+| `app/globals.css` never imported | Optional | Dead code with no user-visible effect. Delete it for tidiness (git keeps history); importing it would restyle the page. |
+| `dev:all` untested on Windows | No | Developed on macOS, deployed, and the README gives the Windows venv command. |
+
+Still to do outside the code: rotate the Groq and Pinecone keys that were pasted into the
+build chat (update Render env vars and the local `.env`).
