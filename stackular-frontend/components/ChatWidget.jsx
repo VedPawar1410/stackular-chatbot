@@ -10,7 +10,10 @@ const SUGGESTIONS = [
   'Open positions',
 ];
 
-function TypingIndicator() {
+// After this long with no answer, assume the free Render instance is waking from sleep.
+const SLOW_MS = 5000;
+
+function TypingIndicator({ slow }) {
   return (
     <div style={{ display: 'flex', alignSelf: 'flex-start', maxWidth: '85%' }}>
       <div style={{
@@ -19,6 +22,11 @@ function TypingIndicator() {
         borderRadius: '12px 12px 12px 3px',
         display: 'flex', gap: '4px', alignItems: 'center'
       }}>
+        {slow && (
+          <span style={{ fontSize: 12, color: '#6b7280', marginRight: 6 }}>
+            Waking up the server, this can take ~30 s
+          </span>
+        )}
         {[0, 1, 2].map(i => (
           <span key={i} style={{
             width: 6, height: 6, borderRadius: '50%', background: '#9ca3af',
@@ -76,8 +84,15 @@ export default function ChatWidget() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showSuggestions, setShowSuggestions] = useState(true);
+  const [isSlow, setIsSlow] = useState(false);
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+
+  // Pre-warm: the free backend sleeps after ~15 min idle. Ping its cheap `/` route as soon as
+  // the page loads, so it is waking up while the visitor reads and types their first question.
+  useEffect(() => {
+    fetch(`${API_URL}/`).catch(() => {});  // fire-and-forget; errors are handled on send
+  }, []);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -90,6 +105,7 @@ export default function ChatWidget() {
   const fetchAnswer = async (question) => {
     setIsLoading(true);
     setMessages(prev => [...prev, { role: 'user', text: question }]);
+    const slowTimer = setTimeout(() => setIsSlow(true), SLOW_MS);
 
     try {
       const res = await fetch(`${API_URL}/chat`, {
@@ -113,6 +129,8 @@ export default function ChatWidget() {
       }]);
     }
 
+    clearTimeout(slowTimer);
+    setIsSlow(false);
     setIsLoading(false);
   };
 
@@ -210,7 +228,7 @@ export default function ChatWidget() {
             display: 'flex', flexDirection: 'column', gap: 10,
           }}>
             {messages.map((msg, i) => <Message key={i} role={msg.role} text={msg.text} />)}
-            {isLoading && <TypingIndicator />}
+            {isLoading && <TypingIndicator slow={isSlow} />}
             <div ref={messagesEndRef} />
           </div>
 
