@@ -95,6 +95,33 @@ def scrape_page(url: str) -> tuple[str, str]:
     return title, text
 
 
+# Drift check for COMPANY_FACTS: each fact must still appear on the live page it came from.
+# Checks the *full* page text (footer included, since that's where email/phone live).
+FACT_SOURCES = [
+    ("Jason Storch", "https://www.stackular.com/about"),
+    ("Venkat Varkala", "https://www.stackular.com/about"),
+    ("Columbia", "https://www.stackular.com/contact-us"),
+    ("Chicago", "https://www.stackular.com/contact-us"),
+    ("Hyderabad", "https://www.stackular.com/contact-us"),
+    ("Costa Rica", "https://www.stackular.com/contact-us"),
+    ("info@stackular.com", "https://www.stackular.com/contact-us"),
+    ("278-8667", "https://www.stackular.com/contact-us"),
+]
+
+
+def check_facts(fact_sources=FACT_SOURCES) -> list[str]:
+    """Return the facts no longer found on their source page (empty list = all still true)."""
+    page_text, missing = {}, []
+    for fact, url in fact_sources:
+        if url not in page_text:
+            resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+            resp.raise_for_status()
+            page_text[url] = BeautifulSoup(resp.content, "html.parser").get_text(" ")
+        if fact not in page_text[url]:
+            missing.append(f"'{fact}' not found on {url}")
+    return missing
+
+
 def build_index(index, embedder) -> int:
     """Scrape every page, chunk, embed and replace the index contents. Returns vector count."""
     texts, failures = [], []

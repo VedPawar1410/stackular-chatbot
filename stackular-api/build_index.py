@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from rag import Embedder, build_index, get_index  # noqa: E402
+from rag import Embedder, build_index, check_facts, get_index  # noqa: E402
 
 if __name__ == "__main__":
     print("Loading embedding model...")
@@ -18,3 +18,13 @@ if __name__ == "__main__":
     print("Scraping pages...")
     n = build_index(index, embedder)
     print(f"OK: upserted {n} vectors into the index.")
+
+    # COMPANY_FACTS is hand-written; warn (don't fail) if the site no longer backs a fact.
+    print("Checking COMPANY_FACTS against the live site...")
+    missing = check_facts()
+    if missing:
+        print("WARNING: these facts may be outdated; update COMPANY_FACTS in rag.py:")
+        for m in missing:
+            print(f"  - {m}")
+    else:
+        print("OK: all company facts still appear on the site.")
