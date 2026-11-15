@@ -1,20 +1,28 @@
 # rag.py
 
-from sentence_transformers import SentenceTransformer
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage
-from pinecone import Pinecone
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
-from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
+from pinecone import Pinecone, ServerlessSpec
+import requests
 import os
-import time
 
 # llama-3.3-70b-versatile was decommissioned on Groq; override with GROQ_MODEL if this one goes too.
 GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+EMBED_MODEL = "BAAI/bge-small-en"
+INDEX_NAME = "bge-small-en"
+EMBED_DIM = 384  # bge-small-en output size; the Pinecone index must match
+
+
+def get_index():
+    """Connect to the Pinecone index, creating it on a fresh account."""
+    pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
+    if INDEX_NAME not in pc.list_indexes().names():
+        print(f"Creating Pinecone index '{INDEX_NAME}'...")
+        pc.create_index(INDEX_NAME, dimension=EMBED_DIM, metric="cosine",
+                        spec=ServerlessSpec(cloud="aws", region="us-east-1"))
+    return pc.Index(INDEX_NAME)
 
 STACKULAR_PAGES = [
     "https://www.stackular.com/",
@@ -33,94 +41,83 @@ STACKULAR_PAGES = [
     "https://www.stackular.com/portfolio/procure-to-pay-app-modernization-for-global-hospitality-organization",
 ]
 
-CURATED_FACTS = [
-    "Stackular was founded by Jason Storch and Venkat Varkala in 2015.",
-    "Stackular is headquartered in Columbia, Maryland, USA with an office in Hyderabad, India.",
-    "Contact Stackular at https://www.stackular.com/contact-us",
-    "View open job positions at Stackular at https://www.stackular.com/joinus",
-    "Stackular's full portfolio of projects is at https://www.stackular.com/portfolio",
-    "Stackular's privacy policy is available at https://www.stackular.com/privacy-policy",
-]
+# One paragraph, not six one-liners: tiny chunks that mostly say "Stackular" matched every
+# question and pushed real page content out of the top results. Every fact here was checked
+# against stackular.com in Nov 2026 (the email/phone live in the site footer, which the
+# scraper strips, so they must be added by hand).
+COMPANY_FACTS = (
+    "Stackular company facts. Stackular was founded by Jason Storch (Founder & CEO) and "
+    "Venkat Varkala (Founder & CTO). Stackular has offices in Columbia, Maryland, USA "
+    "(10490 Little Patuxent Pkwy, Columbia, MD 21044); Chicago, Illinois, USA "
+    "(3432 W Diversey Ave., Chicago, IL 60647); Hyderabad, India (Sandhya Techno 1, "
+    "Gachibowli Road, Raidurg, Hyderabad, TG 500032); and San José, Costa Rica (Plaza Tempo, "
+    "Escazú). Email: info@stackular.com. Phone: 1 (888) 278-8667. Contact page: "
+    "https://www.stackular.com/contact-us. Open positions: https://www.stackular.com/joinus."
+)
 
-SOURCE_URLS = {
-    "contact": "https://www.stackular.com/contact-us",
-    "careers": "https://www.stackular.com/joinus",
-    "jobs": "https://www.stackular.com/joinus",
-    "privacy": "https://www.stackular.com/privacy-policy",
-    "portfolio": "https://www.stackular.com/portfolio",
-    "services": "https://www.stackular.com/services/",
-    "about": "https://www.stackular.com/about",
-}
+# A real page has far more text than this; less means the fetch or the page layout broke.
+MIN_PAGE_CHARS = 200
 
 
-def scrape_page(url: str) -> str:
-    try:
-        options = Options()
-        options.add_argument("--headless")
-        options.add_argument("--no-sandbox")
-        options.add_argument("--disable-dev-shm-usage")
-        driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            options=options
-        )
-        driver.get(url)
-        time.sleep(3)
-        soup = BeautifulSoup(driver.page_source, "html.parser")
-        driver.quit()
-        for tag in soup(["script", "style", "nav", "footer", "header"]):
-            tag.decompose()
-        return soup.get_text(separator=" ", strip=True)
-    except Exception as e:
-        print(f"Failed to scrape {url}: {e}")
-        return ""
+def scrape_page(url: str) -> tuple[str, str]:
+    """Fetch a page and return (title, main text). Raises on any failure (no silent "").
+
+    stackular.com is server-rendered, so plain HTTP returns the same text Selenium did
+    (checked: /about 1090 vs 1088 chars) without needing Chrome on the server.
+    """
+    resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+    resp.raise_for_status()
+    # Pass bytes, not resp.text: the server sends no charset header, so requests guesses
+    # ISO-8859-1 and turns "we’re" into "weâ€™re". BeautifulSoup reads <meta charset> instead.
+    soup = BeautifulSoup(resp.content, "html.parser")
+    title = soup.title.get_text(strip=True) if soup.title else url
+    for tag in soup(["script", "style", "nav", "footer", "header"]):
+        tag.decompose()
+    text = soup.get_text(separator=" ", strip=True)
+    if len(text) < MIN_PAGE_CHARS:
+        raise ValueError(f"only {len(text)} chars of text")
+    return title, text
 
 
-def build_index_if_empty(index, embedder):
-    stats = index.describe_index_stats()
-    vector_count = stats.get("total_vector_count", 0)
-
-    if vector_count > 0:
-        print(f"OK: Pinecone index already has {vector_count} vectors. Skipping scrape.")
-        return
-
-    print("Building RAG index...")
-    raw_texts = []
+def build_index(index, embedder) -> int:
+    """Scrape every page, chunk, embed and replace the index contents. Returns vector count."""
+    texts, failures = [], []
     for url in STACKULAR_PAGES:
-        print(f"  Scraping: {url}")
-        text = scrape_page(url)
-        if text:
-            raw_texts.append(text)
-
-    raw_texts.extend(CURATED_FACTS)
+        try:
+            title, text = scrape_page(url)
+            texts.append((url, title, text))
+            print(f"  OK   {len(text):>6} chars  {url}")
+        except Exception as e:
+            failures.append(f"{url}: {e}")
+            print(f"  FAIL {url}: {e}")
+    if failures:
+        # Refuse to build a partial index: that is how the old code ended up with only facts.
+        raise RuntimeError(f"{len(failures)} page(s) failed, index not changed:\n" + "\n".join(failures))
+    texts.append(("company-facts", "Stackular company facts", COMPANY_FACTS))
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=500,
         chunk_overlap=50,
         separators=["\n\n", "\n", ".", " "]
     )
-    all_chunks = []
-    for text in raw_texts:
-        all_chunks.extend(splitter.split_text(text))
-
-    print(f"  Total chunks: {len(all_chunks)}")
-    embeddings = embedder.encode(all_chunks, show_progress_bar=True)
+    # Contextual chunk header: prefix each chunk with its page title so the vector knows what
+    # the chunk is about (bare service headings on /services were losing to long case studies).
+    chunks = [(src, f"[{title}] {c}") for src, title, text in texts for c in splitter.split_text(text)]
+    print(f"  {len(texts)} sources -> {len(chunks)} chunks")
+    embeddings = embedder.encode([c for _, c in chunks], show_progress_bar=True)
 
     vectors = [
-        {
-            "id": f"chunk_{i}",
-            "values": emb.tolist(),
-            "metadata": {"text": chunk}
-        }
-        for i, (chunk, emb) in enumerate(zip(all_chunks, embeddings))
+        {"id": f"chunk_{i}", "values": emb.tolist(), "metadata": {"text": c, "source": src}}
+        for i, ((src, c), emb) in enumerate(zip(chunks, embeddings))
     ]
-
+    if index.describe_index_stats().get("total_vector_count", 0) > 0:
+        index.delete(delete_all=True)  # full rebuild, so no stale chunks survive
     for i in range(0, len(vectors), 100):
         index.upsert(vectors=vectors[i:i+100])
+    return len(vectors)
 
-    print("OK: RAG index ready.")
 
-
-def retrieve(question: str, index, embedder, top_k: int = 3) -> list[str]:
+def retrieve(question: str, index, embedder, top_k: int = 5) -> list[str]:
     q_embedding = embedder.encode([question]).tolist()[0]
     results = index.query(
         vector=q_embedding,
@@ -134,16 +131,10 @@ def rag_answer(question: str, index, embedder) -> str:
     chunks = retrieve(question, index, embedder)
     context = "\n\n".join(chunks)
 
-    question_lower = question.lower()
-    relevant_url = next(
-        (url for keyword, url in SOURCE_URLS.items() if keyword in question_lower),
-        "https://www.stackular.com"
-    )
-
     text = "My expertise is focused on Stackular's services, industries, and company. For anything else, here's how to reach the team: [Contact Stackular](https://www.stackular.com/contact-us)"
 
     prompt = f"""You are a concise, friendly assistant embedded on the Stackular website.
-Stackular is a software consulting and development company based in Columbia, Maryland, USA and Hyderabad, India.
+Stackular is a software consulting and development company with offices in Columbia (Maryland, USA), Chicago (Illinois, USA), Hyderabad (India) and San José (Costa Rica).
 
 You help website visitors — potential clients, job applicants, or general visitors — get clear answers about Stackular.
 
@@ -194,7 +185,7 @@ Q: Where is Stackular located in India?
 A: Stackular's India office is located in Hyderabad.
 
 Q: Where is Stackular?
-A: Stackular is headquartered in Columbia, Maryland, USA, with an office in Hyderabad, India.
+A: Stackular has offices in Columbia, Maryland and Chicago, Illinois in the USA, Hyderabad in India, and San José in Costa Rica.
 
 Q: What projects has Stackular done?
 A: Stackular has worked across industries including Commercial and Hospitality, with projects featuring redesigned interfaces, unified entry points, and expanded offerings.
@@ -219,7 +210,7 @@ Answer:"""
     llm = ChatGroq(
         model=GROQ_MODEL,
         api_key=os.getenv("GROQ_API_KEY"),
-        temperature=0.7
+        temperature=0  # factual Q&A: same question, same answer
     )
     response = llm.invoke([HumanMessage(content=prompt)])
     return response.content

@@ -1,0 +1,18 @@
+[
+  {"id": "greeting", "q": "Hi", "must_not": ["http"]},
+  {"id": "founders", "q": "Who founded Stackular?", "must_all": ["Storch", "Varkala"]},
+  {"id": "locations", "q": "Where are Stackular's offices?", "must_all": ["Columbia", "Hyderabad", "Chicago"]},
+  {"id": "chicago", "q": "Does Stackular have an office in Chicago?", "must_all": ["Chicago"], "must_not": ["don't", "do not", "no office"]},
+  {"id": "email", "q": "What is Stackular's email address?", "must_all": ["info@stackular.com"]},
+  {"id": "phone", "q": "What is Stackular's phone number?", "must_all": ["278-8667"]},
+  {"id": "services", "q": "What services does Stackular offer?", "must_any": ["Artificial Intelligence", "AI"], "must_any2": ["Data", "Cloud", "Enterprise"]},
+  {"id": "openings", "q": "What job openings do you have?", "must_all": ["Cloud Engineer", "joinus"]},
+  {"id": "contact_link", "q": "How can I contact Stackular?", "must_all": ["contact-us"]},
+  {"id": "industries", "q": "Which industries does Stackular work with?", "must_any": ["Government", "Defense", "Healthcare", "Hospitality", "Commercial"]},
+  {"id": "core_values", "q": "What are Stackular's core values?", "must_all": ["Empathy"]},
+  {"id": "rideshare", "q": "Tell me about the UX redesign project for the rideshare company.", "must_any": ["UX", "unified", "Figma", "prototyp"]},
+  {"id": "privacy", "q": "Where can I read your privacy policy?", "must_all": ["privacy-policy"]},
+  {"id": "portfolio_link", "q": "What projects has Stackular done?", "must_all": ["portfolio"]},
+  {"id": "offtopic_weather", "q": "What is the weather today?", "must_all": ["My expertise is focused"]},
+  {"id": "offtopic_code", "q": "Write me a Python function that reverses a string.", "must_all": ["My expertise is focused"], "must_not": ["def "]}
+]

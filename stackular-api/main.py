@@ -1,13 +1,12 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from pinecone import Pinecone, ServerlessSpec
 from sentence_transformers import SentenceTransformer
 from dotenv import load_dotenv
-from rag import build_index_if_empty, rag_answer
-import os
 
 load_dotenv()
+
+from rag import EMBED_MODEL, get_index, rag_answer  # noqa: E402 (needs env loaded first)
 
 app = FastAPI()
 
@@ -21,19 +20,13 @@ app.add_middleware(
 
 # ── Load models once at startup, not per request ──
 print("Loading embedding model...")
-embedder = SentenceTransformer('BAAI/bge-small-en')
+embedder = SentenceTransformer(EMBED_MODEL)
 
 print("Connecting to Pinecone...")
-pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-INDEX_NAME = "bge-small-en"
-if INDEX_NAME not in pc.list_indexes().names():
-    # 384 = bge-small-en embedding size; a fresh Pinecone account has no index yet
-    print(f"Creating Pinecone index '{INDEX_NAME}'...")
-    pc.create_index(INDEX_NAME, dimension=384, metric="cosine",
-                    spec=ServerlessSpec(cloud="aws", region="us-east-1"))
-index = pc.Index(INDEX_NAME)
-
-build_index_if_empty(index, embedder)
+index = get_index()
+# The API only serves; building the index is a separate step (python build_index.py).
+if index.describe_index_stats().get("total_vector_count", 0) == 0:
+    print("WARNING: Pinecone index is empty. Run `python build_index.py` first.")
 print("API ready.")
 
 
